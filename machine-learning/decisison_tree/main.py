@@ -34,6 +34,28 @@ def calculate_shannon_entropy(data_set):
     return shannon_entropy
 
 
+def calculate_gini(data_set):
+    ''' 计算dataSet的基尼系数
+
+    :param data_set:
+    :return:
+    '''
+    numEntries = len(data_set)
+    labelCounts = {}
+
+    for row in data_set:
+        currentLabel = row[-1]
+        if currentLabel not in labelCounts.keys():
+            labelCounts[currentLabel] = 0
+        labelCounts[currentLabel] += 1
+
+    gini = 1.0
+    for key in labelCounts.keys():
+        prob = float(labelCounts[key])/numEntries
+        gini -= prob * prob
+    return gini
+
+
 def split_data_set(data_set, axis, value):
     '''抽取出数据集中第axis维中值等于value的行，并且该行中去除掉第axis维
 
@@ -52,13 +74,13 @@ def split_data_set(data_set, axis, value):
 
 
 def choose_best_feature_to_split(dataSet):
-    '''选择最好的特征
+    ''' ID3选择最好的特征
 
     :param dataSet:
     :return: 最好的特征
     '''
     num_feature = len(dataSet[0]) - 1
-#    base_entropy = calculate_shannon_entropy(dataSet)
+    base_entropy = calculate_shannon_entropy(dataSet)
     best_info_gain = 0.0
     best_feature = -1
     for i in range(num_feature):
@@ -70,10 +92,63 @@ def choose_best_feature_to_split(dataSet):
             sub_data_set = split_data_set(dataSet, i, value)
             prob = len(sub_data_set) / float(len(dataSet))
             new_entropy += prob * calculate_shannon_entropy(sub_data_set)
-#        info_gain = base_entropy - new_entropy
-        info_gain = -new_entropy
+        info_gain = base_entropy - new_entropy
         if info_gain > best_info_gain:
             best_info_gain = info_gain
+            best_feature = i
+    return best_feature
+
+
+def choose_best_feature_to_split_C45(dataSet):
+    ''' C4.5选择最好的特征
+
+    :param dataSet:
+    :return: 最好的特征
+    '''
+    num_feature = len(dataSet[0]) - 1
+    base_entropy = calculate_shannon_entropy(dataSet)
+    best_gain_rate = 0.0
+    best_feature = -1
+    for i in range(num_feature):
+        #求某一列的所有值
+        feature_list = [example[i] for example in dataSet]
+        unique_value = set(feature_list)
+        new_entropy = 0.0
+        split_info = 1.0    # 防止split_info可能为0，这里采用预先加1的方法
+        for value in unique_value:
+            sub_data_set = split_data_set(dataSet, i, value)
+            prob = len(sub_data_set) / float(len(dataSet))
+            split_info -= prob * log(prob, 2)
+            new_entropy += prob * calculate_shannon_entropy(sub_data_set)
+        gain_rate = (base_entropy - new_entropy) / split_info
+        if gain_rate > best_gain_rate:
+            best_gain_rate = gain_rate
+            best_feature = i
+    return best_feature
+
+
+def choose_best_feature_to_split_gini(dataSet):
+    ''' gini选择最好的特征
+
+    :param dataSet:
+    :return: 最好的特征
+    '''
+    num_feature = len(dataSet[0]) - 1
+    base_gini = calculate_gini(dataSet)
+    best_gini_gain = 0.0
+    best_feature = -1
+    for i in range(num_feature):
+        #求某一列的所有值
+        feature_list = [example[i] for example in dataSet]
+        unique_value = set(feature_list)
+        newGiniIndex = 0.0
+        for value in unique_value:
+            subDataSet = split_data_set(dataSet, i, value)
+            prob = len(subDataSet) / float(len(dataSet))
+            newGiniIndex += prob * calculate_gini(subDataSet)
+        gini_gain = base_gini - newGiniIndex
+        if gini_gain > best_gini_gain:
+            best_gini_gain = gini_gain
             best_feature = i
     return best_feature
 
@@ -89,6 +164,12 @@ def majority_cnt(classList):
 
 
 def create_tree(dataSet, labels):
+    ''' 递归创建决策树，使用map保存
+
+    :param dataSet: 输入数据集
+    :param labels: 各个属性名，（'no surfacing', 'flippers'）表示属性列为是否浮出水面和是否有璞
+    :return: 决策树
+    '''
     class_list = [line[-1] for line in dataSet]
     #类别完全相同时停止继续划分
     if class_list.count(class_list[0]) == len(class_list):
@@ -98,7 +179,7 @@ def create_tree(dataSet, labels):
         return majority_cnt(class_list)
 
     #正常循环
-    best_feature = choose_best_feature_to_split(dataSet)
+    best_feature = choose_best_feature_to_split_gini(dataSet)
     best_label = labels[best_feature]
     decision_tree = {best_label: {}}
     del(labels[best_feature])
@@ -107,12 +188,11 @@ def create_tree(dataSet, labels):
     unique_feature_value = set(feature_values)
     for feature_value in unique_feature_value:
         sub_labels = labels[:]
-        decision_tree[best_label][feature_value] = \
-            create_tree(split_data_set(dataSet, best_feature, feature_value), sub_labels)
+        decision_tree[best_label][feature_value] = create_tree(split_data_set(dataSet, best_feature, feature_value), sub_labels)
     return decision_tree
 
 
 if __name__ == '__main__':
     dataSet, labels = create_data_set()
-    print(choose_best_feature_to_split(dataSet))
+    # print(choose_best_feature_to_split(dataSet))
     print(create_tree(dataSet, labels))
