@@ -30,8 +30,7 @@ def stumpClassify(dataMatrix, dimen, threshold, inequation):
     :param dimen: 要检验的维度，1,2...n
     :param threshold: 阈值
     :param inequation: 比较操作 ”lt“ or ”gt“
-    :return: 列向量，dataMatrix中第dimen维度的数据，满足a inequation threshold的设为-1，不满足的为1
-            即树的左分支为-1，右分支为1
+    :return: 列向量，dataMatrix中第dimen维度的数据，满足a inequation threshold的预测为-1，不满足的为1
     """
     retArray = ones([shape(dataMatrix)[0], 1])
     if inequation == 'lt':
@@ -82,7 +81,7 @@ def adaBoostTrainDS(dataArr, classLabels, numIt = 40):
     :param dataArr: m X n维数据矩阵
     :param classLabels: dataArr对应的类别
     :param numIt: 最多迭代次数
-    :return: weakClassArr-决策树桩弱分类器数组；aggClassEst-弱分类器聚合的分类错误
+    :return: weakClassArr-决策树桩弱分类器数组；aggClassEst是累计的类别估计值
     """
     labelMat = mat(classLabels).T
     weakClassArr = []
@@ -104,11 +103,11 @@ def adaBoostTrainDS(dataArr, classLabels, numIt = 40):
         aggErrors = multiply(sign(aggClassEst) != labelMat, ones((m,1)))
         #print("aggErrors error: ", aggErrors)
         errorRate = aggErrors.sum() / m
-        print("total error: ", errorRate)
+        #print("total error: ", errorRate)
         if errorRate == 0.0:
             break
 
-    return weakClassArr,aggClassEst
+    return weakClassArr
 
 
 def adaClassfy(dataToClassfy, classifierArr):
@@ -117,20 +116,21 @@ def adaClassfy(dataToClassfy, classifierArr):
     aggClassEst = mat(zeros((m, 1)))
     for i in range(len(classifierArr)):
         classEst = stumpClassify(dataMat,classifierArr[i]['dim'],classifierArr[i]['threshod'],classifierArr[i]['ineq'])
+        # 加权求和
         aggClassEst += classifierArr[i]['alpha']*classEst
         print(aggClassEst)
     return sign(aggClassEst)
 
 
 if __name__ == '__main__':
-    # dataMat, classLabels = loadSimpleData()
-    # D = mat(ones((5,1))/5)
-    # bestStump, minError, bestClassEst = buildStump(dataMat,classLabels,D)
-    # classifierArray, _ = adaBoostTrainDS(dataMat,classLabels,9)
-    # adaClassfy([0,0], classifierArray)
-    dataMat, classLabels = loadDataSet('horseColicTraining2.txt')
-    classifierArray, _ = adaBoostTrainDS(dataMat, classLabels,10)
-    testDataMat, testClassLabels = loadDataSet('horseColicTest2.txt')
-    prediction10 = adaClassfy(testDataMat, classifierArray)
-    errArr = ones((67,1))
-    print(errArr[prediction10 != mat(testClassLabels).T].sum())
+    dataMat, classLabels = loadSimpleData()
+    D = mat(ones((5,1))/5)
+    bestStump, minError, bestClassEst = buildStump(dataMat,classLabels,D)
+    classifierArray = adaBoostTrainDS(dataMat,classLabels,10)
+    adaClassfy([0,0], classifierArray)
+    # dataMat, classLabels = loadDataSet('horseColicTraining2.txt')
+    # classifierArray = adaBoostTrainDS(dataMat, classLabels,10)
+    # testDataMat, testClassLabels = loadDataSet('horseColicTest2.txt')
+    # prediction10 = adaClassfy(testDataMat, classifierArray)
+    # errArr = ones((67,1))
+    # print(errArr[prediction10 != mat(testClassLabels).T].sum())
