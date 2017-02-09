@@ -118,19 +118,104 @@ def create_tree(dataSet, labels):
     return decision_tree
 
 
-def createForest(dataSet, labels, numTress):
+def createForest(dataSet, featureLabels, numTress):
+    ''' 创建随机森林
+
+    :param dataSet: 数据集
+    :param featureLabels: 每个特征名称的列表
+    :param numTress: 随机森林中决策树的个数
+    :return:
+    '''
     row, col = shape(dataSet)
     forest = []
     for i in range(numTress):
-        # sample data
-        samples = unique(random.randint(0, row, size=(row+1)/2))
-        sampleDatas = dataSet[samples.tolist()]
+        # 随机抽取一半的数据
+        samples = unique(random.randint(0, row, size=(row+1)//2))
+        sampleDatas = array(dataSet)[samples.tolist()]
+
+        # 从抽取的数据中随机抽取一半的特征
+        features = unique(random.randint(0, col-1, col//2))
+        features_list = features.tolist()
+        feature_labels = array(featureLabels)[features_list]
+        features_list.append(-1)
+        sample_feature_data = sampleDatas[:, features_list]
+
+        # 根据抽样的数据构建决策树
+        tree = create_tree(sample_feature_data.tolist(), feature_labels.tolist())
+        forest.append(tree)
+    return forest
+
+
+def classify(inputTree, featureLabels, testVec):
+    ''' 使用决策树进行分类
+
+    :param inputTree:决策树
+    :param featureLabels:
+    :param testVec:
+    :return:
+    '''
+    first_lable = list(inputTree.keys())[0]
+    second_dict = inputTree[first_lable]
+    feature_index = featureLabels.index(first_lable)
+    feature_value = testVec[feature_index]
+
+    #特殊处理，如果树中找不到该属性的值，则从树中随机选取一个,或者直接返回错误
+    value = second_dict.get(feature_value, "false")
+    if value == "false":
+        return "cannot"
+        # values = second_dict.values();
+        # r = random.randint(0, len(values))
+        # value = values[r]
+
+    if type(value).__name__ == 'dict':
+        class_label = classify(value, featureLabels, testVec)
+    else:
+        class_label = value
+    return class_label
+
+
+def predict(forest, featureLabels, test_data):
+    ''' 使用随机森林forest对测试数据test_data进行预测
+
+    :param forest:
+    :param featureLabels:
+    :param test_data:
+    :return:
+    '''
+    predict_labels = []
+    # 对每一个样本
+    for row in test_data:
+        dic = {}
+        # 使用所有的决策树做预测，返回预测最多的作为结果
+        for tree in forest:
+            predict_label = classify(tree, featureLabels, row)
+            if predict_label == "cannot":
+                continue
+            dic[predict_label] = dic.get(predict_label, 0) + 1
+        l = sorted(dic.items(), key=lambda ele:ele[1], reverse=True)
+        if len(l) == 0:
+            label = row[-1]
+            predict_labels.append(label)
+        else:
+            predict_labels.append(l[0][0])
+
+    return array(predict_labels)
+
+
+def accuracy(test_data, predictedLables):
+    row = shape(test_data)[0]
+    numCorrect = 0
+    for i in range(row):
+        if predictedLables[i] == array(test_data)[i,-1]:
+            numCorrect += 1
+    print(numCorrect * 1.0 / row)
 
 
 if __name__ == '__main__':
     dataSet, labels = loadDataSet('mushroom.dat')
     trainData = dataSet[:4000]
     testData = dataSet[4000:]
+    forest = createForest(trainData, labels, 10)
+    predictedlabels = predict(forest, labels, testData)
+    accuracy(testData, predictedlabels)
 
-    # print(choose_best_feature_to_split(dataSet))
-    print(create_tree(dataSet, labels))
