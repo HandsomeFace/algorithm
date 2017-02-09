@@ -282,6 +282,26 @@ def create_tree(dataSet, labels):
     return decision_tree
 
 
+def classify(inputTree, featureLabels, testVec):
+    ''' 使用决策树进行分类
+
+    :param inputTree:决策树
+    :param featureLabels:
+    :param testVec:
+    :return:
+    '''
+    first_lable = list(inputTree.keys())[0]
+    second_dict = inputTree[first_lable]
+    feature_index = featureLabels.index(first_lable)
+    for key in second_dict.keys():
+        if testVec[feature_index] == key:
+            if type(second_dict[key]).__name__ == 'dict':
+                class_label = classify(second_dict[key], featureLabels, testVec)
+            else:
+                class_label = second_dict[key]
+    return class_label
+
+
 if __name__ == '__main__':
     dataSet, labels = create_data_set()
     # print(choose_best_feature_to_split(dataSet))
