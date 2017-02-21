@@ -41,12 +41,25 @@ class optStruct:
 
 
 def calcEk(oS, k):
+    ''' 计算预测值与实际值的差值
+
+    :param oS:
+    :param k:
+    :return:
+    '''
     fXk = float(multiply(oS.alphas, oS.labelMat).T * (oS.X * oS.X[k,:].T)) + oS.b
     Ek = fXk - float(oS.labelMat[k])
     return Ek
 
 
 def selectJ(i, oS, Ei):
+    ''' 启发式选择第二个拉格朗日乘子，即最大化步长|Ei-Ej|
+
+    :param i:
+    :param oS:
+    :param Ei:
+    :return:
+    '''
     maxK = -1;maxDeltaE = 0;Ej = 0
     oS.eCache[i] = [1, Ei]
     validEcacheList = nonzero(oS.eCache[:,0].A)[0]
@@ -73,6 +86,12 @@ def updateEk(oS, k):
 
 
 def innerLoop(i, oS):
+    ''' 内循环使用smo算法实现两个拉格朗日乘子的优化
+
+    :param i:
+    :param oS:
+    :return:
+    '''
     Ei = calcEk(oS, i)
     if ((oS.labelMat[i]*Ei < -oS.tol) and (oS.alphas[i] < oS.C)) or ((oS.labelMat[i]*Ei > oS.tol) and (oS.alphas[i] > 0)):
         j,Ej = selectJ(i, oS, Ei)
@@ -88,9 +107,10 @@ def innerLoop(i, oS):
             print("L==H")
             return 0
 
-        eta = 2.0 * oS.X[i,:]*oS.X[j,:].T - oS.X[i,:]*oS.X[i,:].T - oS.X[j,:]*oS.X[j,:].T
-        if eta >= 0:
-            print("eta >= 0")
+        # K11+K22-2k12 <= 0,这儿不做特殊处理，直接返回
+        eta = oS.X[i,:]*oS.X[i,:].T + oS.X[j,:]*oS.X[j,:].T -2.0 * oS.X[i,:]*oS.X[j,:].T
+        if eta <= 0:
+            print("eta <= 0")
             return 0
 
         oS.alphas[j] -= oS.labelMat[j]*(Ei-Ej)/eta
@@ -114,9 +134,20 @@ def innerLoop(i, oS):
         return 0
 
 
-def smoProcess(dataMatIn,labelMatIn,C,toler,maxIter,kTup=('lin', 0)):
+def smoProcess(dataMatIn,labelMatIn,C,toler,maxIter):
+    ''' smo进行优化主过程。每次选择拉格朗日乘子时，优先选择0<ai<C的ai做优化，因为ai为0或C的样例对应的系数ai一般不会改变。
+
+    :param dataMatIn:
+    :param labelMatIn:
+    :param C:
+    :param toler:
+    :param maxIter:
+    :return:
+    '''
     oS = optStruct(mat(dataMatIn), mat(labelMatIn).transpose(), C, toler)
     iter = 0
+    #entirSet和alphaPairsChanged用来控制拉格朗日乘子的选择，两种方式：一种是在所有数据集上进行单遍扫描，
+    #另一种是在非边界（ai不为0或C）alpha中实现单遍扫描。然后调用内循环。
     entirSet = True; alphaPairsChanged = 0
     while (iter < maxIter) and ((alphaPairsChanged > 0) or (entirSet)):
         alphaPairsChanged = 0
@@ -124,14 +155,13 @@ def smoProcess(dataMatIn,labelMatIn,C,toler,maxIter,kTup=('lin', 0)):
             for i in range(oS.m):
                 alphaPairsChanged += innerLoop(i, oS)
                 print("fullSet, iter: %d i:%d, pairs changed %d" % (iter, i, alphaPairsChanged))
-            iter += 1
         else:
             nonBoundIs = nonzero((oS.alphas.A > 0) * (oS.alphas.A < oS.C))[0]
             for i in nonBoundIs:
                 alphaPairsChanged += innerLoop(i, oS)
                 print("non-bound, iter: %d i:%d, pairs changed %d" % (iter, i, alphaPairsChanged))
-            iter += 1
 
+        iter += 1
         if entirSet:
             entirSet = False
         elif (alphaPairsChanged == 0):
